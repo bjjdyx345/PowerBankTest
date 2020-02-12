@@ -11,8 +11,9 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 import Mylib as prototool
 import logging
+import GlobalVar as cfg
 
-global host_ip = "192.168.29.1"
+global select_ssid, select_login_pass, select_root_pass
 
 class Ui_Form(object):
     def setupUi(self, Form):
@@ -45,7 +46,9 @@ class Ui_Form(object):
         spacerItem = QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout.addItem(spacerItem)
         self.WiFiListBox = QtWidgets.QComboBox(self.horizontalLayoutWidget)
-        self.WiFiListBox.setObjectName("WiFiListBox")
+        self.WiFiListBox.addItem("WiFiListBox")
+
+
         self.horizontalLayout.addWidget(self.WiFiListBox)
         spacerItem1 = QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout.addItem(spacerItem1)
@@ -200,11 +203,11 @@ class Ui_Form(object):
         self.horizontalLayout_4.addWidget(self.selectWiFiPass)
 
         self.retranslateUi(Form)
-        self.FreshpB.clicked.connect(Form.Pb_getwifi)
-        self.WiFiListBox.currentIndexChanged['QString'].connect(Form.GetListBoxValue)
-        self.LinkWiFi.clicked.connect(Form.Connect_Wifi)
-        self.PullPowerBank.clicked.connect(Form.Getout_All_PowerBank)
-        self.pushButton.clicked.connect(Form.Get_Ver)
+        self.FreshpB.clicked.connect(self.Pb_getwifi)
+        self.WiFiListBox.currentIndexChanged['QString'].connect(self.GetListBoxValue)
+        self.LinkWiFi.clicked.connect(self.Connect_Wifi)
+        self.PullPowerBank.clicked.connect(self.Getout_All_PowerBank)
+        self.pushButton.clicked.connect(self.Get_Ver)
         QtCore.QMetaObject.connectSlotsByName(Form)
 
     def retranslateUi(self, Form):
@@ -225,37 +228,94 @@ class Ui_Form(object):
         self.pushButton.setText(_translate("Form", "获取版本信息"))
         self.label_7.setText(_translate("Form", "登陆密码"))
         self.selectWiFiPass.setText(_translate("Form", "PASSWORD"))
+
     def Pb_getwifi(self):
         global wifi
+        wifi_list=[]
         wifi = prototool.WiFi()
         wifi_dict = wifi.scan_wifi()
-        for k,v in wifi_dict:
-            self.WiFiListBox.AddItem(v)
-            print("the"+k+"value is"+v)
+        for v in wifi_dict.values():
+            if(v!=""):
+                wifi_list.append(v)
+        print(wifi_list)
+        self.WiFiListBox.clear()
+        self.WiFiListBox.addItems(wifi_list)
+        #self.WiFiListBox.removeItem(0)
+
+
     def GetListBoxValue(self):
         global wifi
         global select_ssid, select_login_pass, select_root_pass
         select_ssid = self.WiFiListBox.currentText()
         select_login_pass,select_root_pass = wifi.get_wifi_pass(select_ssid)
+        print("\n-------------------------------\n")
+        print(" ssid %s|  login_pass %s |   root_pass %s " %(select_ssid,select_login_pass,select_root_pass))
+        print("\n-------------------------------\n")
+        self.selectWiFiSSID.setText(select_ssid)
+        self.selectWiFiPass.setText(select_login_pass)
+        sys_cfg.set_value("login_pass",select_login_pass)
+        sys_cfg.set_value("root_pass", select_root_pass)
+
     def Connect_Wifi(self):
         global select_ssid, select_login_pass, select_root_pass
         status = wifi.connect_wifi(select_ssid,select_login_pass)
-    def Get_Ver(self):
-        host_ip = '192.168.29.1'
+        host_ip =sys_cfg.get_value("host_ip")
         # 远程主机用户名
-        username = 'root'
+        username = sys_cfg.get_value("user_name")
         # 远程主机密码
-        password = 'ddgj12'
+        password = sys_cfg.get_value("root_pass")
+        print(status)
+        #status = wifi.connect_wifi(select_ssid, "bjj6485200")
+
+    def Get_Ver(self):
+        host_ip =sys_cfg.get_value("host_ip")
+        # 远程主机用户名
+        username = sys_cfg.get_value("user_name")
+        # 远程主机密码
+        password = sys_cfg.get_value("root_pass")
         # 要执行的shell命令；换成自己想要执行的命令
         # 自己使用ssh时，命令怎么敲的command参数就怎么写
-        command = 'mtdbg loan 1'
-        command1 = 'cat /tmp/sys_info'
+        command1 = sys_cfg.get_value("cmd1")  #cmd1: mtdbg loan 1       get out all powerbank
+        command2 = sys_cfg.get_value("cmd2")  #cmd2: cat /tmp/sys_info  get systerm info
         # 实例化
-        my_ssh_client = MySshClient()
+        my_ssh_client = prototool.proproMySshClient()
         # 登录，如果返回结果为1000，那么执行命令，然后退出
         if my_ssh_client.ssh_login(host_ip, username, password) == 1000:
-            logging.warning(f"{host_ip}-login success, will execute command：{command}")
-            #my_ssh_client.execute_some_command(command)
-            my_ssh_client.execute_some_command(command1)
+            logging.warning(f"{host_ip}-login success, will execute command：{command2}")
+            my_ssh_client.execute_some_command(command2)
             my_ssh_client.ssh_logout()
+        pass
 
+    def Getout_All_PowerBank(self):
+        print("get all powerbank")
+        host_ip =sys_cfg.get_value("host_ip")
+        # 远程主机用户名
+        username = sys_cfg.get_value("user_name")
+        # 远程主机密码
+        password = sys_cfg.get_value("root_pass")
+        # 要执行的shell命令；换成自己想要执行的命令
+        # 自己使用ssh时，命令怎么敲的command参数就怎么写
+        command1 = sys_cfg.get_value("cmd1")  #cmd1: mtdbg loan 1       get out all powerbank
+        command2 = sys_cfg.get_value("cmd2")  #cmd2: cat /tmp/sys_info  get systerm info
+        # 实例化
+        my_ssh_client = prototool.proproMySshClient()
+        # 登录，如果返回结果为1000，那么执行命令，然后退出
+        if my_ssh_client.ssh_login(host_ip, username, password) == 1000:
+            logging.warning(f"{host_ip}-login success, will execute command：{command2}")
+            my_ssh_client.execute_some_command(command1)
+            res=my_ssh_client.execute_some_command(command2) #return response
+            my_ssh_client.ssh_logout()
+        pass
+
+if __name__=="__main__":
+    import sys
+    global sys_cfg
+    #Mywifi = prototool.WTen_WiFi()
+    #Mywifi.Wifi_Scan()
+    sys_cfg=cfg.GlobalConfig("config.yaml")
+    app=QtWidgets.QApplication(sys.argv)
+    widget=QtWidgets.QWidget()
+    ui=Ui_Form()
+    ui.setupUi(widget)
+    widget.show()
+    sys.exit(app.exec_())

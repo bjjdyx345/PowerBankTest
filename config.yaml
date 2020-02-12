@@ -1,2 +1,4 @@
 host_ip: 192.168.29.1
 user_name: root
+cmd1: mtdbg loan 1
+cmd2: cat /tmp/sys_info

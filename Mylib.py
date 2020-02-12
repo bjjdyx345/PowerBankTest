@@ -1,3 +1,4 @@
+#coding=utf-8
 import time
 import tkinter as tk
 from pywifi import const, PyWiFi, Profile
@@ -7,8 +8,9 @@ from paramiko.client import SSHClient, AutoAddPolicy
 from paramiko.ssh_exception import NoValidConnectionsError
 import logging
 import hashlib
-
-import yaml
+import os
+import sys
+import subprocess
 
 
 class MySshClient():
@@ -36,7 +38,9 @@ class MySshClient():
     # 此函数用于执行command参数中的命令并打印命令执行结果
     def execute_some_command(self, command):
         stdin, stdout, stderr = self.ssh_client.exec_command(command)
-        print(stdout.read().decode())
+        res=stdout.read().decode()
+        print(res)
+        return res
 
     # 此函数用于退出登录
     def ssh_logout(self):
@@ -44,12 +48,31 @@ class MySshClient():
         self.ssh_client.close()
 
 
+class WTen_WiFi(object):
+    def __init__(self):
+        self.get_wifi_list = 'netsh wlan show networks'
+        self.disconnect_wifi = 'netsh wlan disconnect'
+        self.ssid = "ssid"
+        self.password = "password"
+        self.connect_wifi = "netsh wlan connect"
+
+    def Wifi_Scan(self):
+        # print (sys.getdefaultencoding())
+        os.system(self.disconnect_wifi)
+        p = subprocess.Popen(self.get_wifi_list, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+        p.wait()
+        result_lines = p.stdout.readlines()  # 从子进程 p 的标准输出中读取所有行，并储存在一个list对象中
+        print(result_lines)
+
+        #result = os.system(self.get_wifi_list)
+        #print(type(result))
+
+
 class WiFi(object):
     # 创建对象自动初始化，类似Java的构造函数
     def __init__(self):
-        wifi = PyWiFi()                     # 创建一个无线对象
-        print(wifi.interfaces())
-        self.iface = wifi.interfaces()[0]   # 获取当前机器第一个无线网卡
+        self.wifi = PyWiFi()  # 创建一个无线对象
+        self.iface = self.wifi.interfaces()[0]  # 获取当前机器第一个无线网卡
 
     # 查看wifi的连接状态
     def wifi_connect_status(self):
@@ -61,9 +84,9 @@ class WiFi(object):
         # 判断是否连接成功
         if self.iface.status() in \
                 [const.IFACE_CONNECTED, const.IFACE_CONNECTING, const.IFACE_INACTIVE]:
-            return self.iface.name()        # 连接成功显示连接设备
+            return self.iface.name()  # 连接成功显示连接设备
         else:
-            return "not connected!"        # 连接失败返回失败信息
+            return "not connected!"  # 连接失败返回失败信息
 
     """
     扫描附近wifi
@@ -76,82 +99,85 @@ class WiFi(object):
         你会发现gb18030在控制台和py的某些控件上输出是乱码  是因为 控制台是utf-8
         想在这上面输出中文的话你得encode('raw_unicode_escape','strict').decode()
     """
-    def scan_wifi(self, scantime=5):
+
+    def scan_wifi(self, scantime=3):
         """
         :param scantime:    指定扫描时间，默认扫描时间为5秒
         :return:            返回的是一个network dictionary,key=bssid,value=ssid
         """
-        self.iface.scan()                                           # 扫描附近wifi
+        self.iface.scan()  # 扫描附近wifi
         time.sleep(scantime)
         basewifi = self.iface.scan_results()
+        # print("has end step2")
         dict = {}
         for i in basewifi:
             dict[i.bssid] = \
                 i.ssid.encode(encoding='raw_unicode_escape', errors='strict').decode()
+        # print("has end step3")
         return dict
-    def get_wifi_pass(self,wifi_ssid):
-        tmp = "mt-ddgj12-6EFD"
+
+    def get_wifi_pass(self, wifi_ssid):
+        tmp = wifi_ssid
         # tmp = hashlib.md5(tmp.encode('latin1')).hexdigest()
 
         for i in range(3):
             tmp = tmp + '\n'
-            md5_obj = hashlib.md5() #need to every time new object
+            md5_obj = hashlib.md5()  # need to every time new object
             md5_obj.update(tmp.encode('utf-8'))
             tmp = md5_obj.hexdigest()
         wifi_pass = tmp[0:7]
         root_pass = tmp[26:32]
+        print(tmp,wifi_pass,root_pass)
+        return wifi_pass, root_pass
 
-        print(tmp)
-        print(wifi_pass)
-        print(root_pass)
-        return wifi_pass,root_pass
     # 链接到指定wifi
     def connect_wifi(self, wifi_ssid, password):
-        profile = Profile()                                         # 配置文件
-        profile.ssid = wifi_ssid                                    # wifi名称
-        profile.auth = const.AUTH_ALG_OPEN                          # 需要密码
-        profile.akm.append(const.AKM_TYPE_WPA2PSK)                  # 加密类型
-        profile.cipher = const.CIPHER_TYPE_CCMP                     # 加密单元
-        profile.key = password                                      # wifi密码
+        profile = Profile()  # 配置文件
+        profile.ssid = wifi_ssid  # wifi名称
+        profile.auth = const.AUTH_ALG_OPEN  # 需要密码
+        profile.akm.append(const.AKM_TYPE_WPA2PSK)  # 加密类型
+        profile.cipher = const.CIPHER_TYPE_CCMP  # 加密单元
+        profile.key = password  # wifi密码
 
-        self.iface.remove_all_network_profiles()                    # 删除其他配置
-        tmp_profile = self.iface.add_network_profile(profile)       # 加载配置
+        self.iface.remove_all_network_profiles()  # 删除其他配置
+        tmp_profile = self.iface.add_network_profile(profile)  # 加载配置
 
-        self.iface.connect(tmp_profile)                             # link start
-        time.sleep(10)                                              # 尝试10s是否成功
+        self.iface.connect(tmp_profile)  # link start
+        time.sleep(10)  # 尝试10s是否成功
         isok = True
         if self.iface.status() == const.IFACE_CONNECTED:
-            return isok                                             # 连接成功
+            return isok  # 连接成功
         else:
-            isok = False                                            # 连接失败设置isok = False
-        self.iface.disconnect()                                     # 避免超时后连接成功手动断开一下，因为在一定时间内连接失败用户会继续重试连接
+            isok = False  # 连接失败设置isok = False
+        self.iface.disconnect()  # 避免超时后连接成功手动断开一下，因为在一定时间内连接失败用户会继续重试连接
         time.sleep(1)
         return isok
+
     def Get_Param(self):
         yamlPath = "config.xml"
         f = open(yamlPath, 'r', encoding='utf-8')
-#if __name__ == "__main__":
+# if __name__ == "__main__":
 
 #    wifi = WiFi()
 #    wifi.get_wifi_pass(wifi_ssid="mt-ddgj12-6EFD")
-    # print(wifi.wifi_connect_status())
-    # print(wifi.scan_wifi())
-    # print(wifi.connect_wifi(r"mt7628-B7E1", r"ddgj1234"))
-    # 远程主机IP
-    # host_ip = '192.168.29.1'
-    # # 远程主机用户名
-    # username = 'root'
-    # # 远程主机密码
-    # password = 'ddgj12'
-    # # 要执行的shell命令；换成自己想要执行的命令
-    # # 自己使用ssh时，命令怎么敲的command参数就怎么写
-    # command = 'mtdbg loan 1'
-    # command1 = 'cat /tmp/sys_info'
-    # # 实例化
-    # my_ssh_client = MySshClient()
-    # # 登录，如果返回结果为1000，那么执行命令，然后退出
-    # if my_ssh_client.ssh_login(host_ip, username, password) == 1000:
-    #     logging.warning(f"{host_ip}-login success, will execute command：{command}")
-    #     #my_ssh_client.execute_some_command(command)
-    #     my_ssh_client.execute_some_command(command1)
-    #     my_ssh_client.ssh_logout()
+# print(wifi.wifi_connect_status())
+# print(wifi.scan_wifi())
+# print(wifi.connect_wifi(r"mt7628-B7E1", r"ddgj1234"))
+# 远程主机IP
+# host_ip = '192.168.29.1'
+# # 远程主机用户名
+# username = 'root'
+# # 远程主机密码
+# password = 'ddgj12'
+# # 要执行的shell命令；换成自己想要执行的命令
+# # 自己使用ssh时，命令怎么敲的command参数就怎么写
+# command = 'mtdbg loan 1'
+# command1 = 'cat /tmp/sys_info'
+# # 实例化
+# my_ssh_client = MySshClient()
+# # 登录，如果返回结果为1000，那么执行命令，然后退出
+# if my_ssh_client.ssh_login(host_ip, username, password) == 1000:
+#     logging.warning(f"{host_ip}-login success, will execute command：{command}")
+#     #my_ssh_client.execute_some_command(command)
+#     my_ssh_client.execute_some_command(command1)
+#     my_ssh_client.ssh_logout()
