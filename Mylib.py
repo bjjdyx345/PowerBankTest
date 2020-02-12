@@ -1,8 +1,6 @@
 #coding=utf-8
 import time
-import tkinter as tk
 from pywifi import const, PyWiFi, Profile
-import paramiko
 from paramiko import AuthenticationException
 from paramiko.client import SSHClient, AutoAddPolicy
 from paramiko.ssh_exception import NoValidConnectionsError
